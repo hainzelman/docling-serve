@@ -7,6 +7,7 @@ import time
 from contextlib import asynccontextmanager
 from io import BytesIO
 from typing import Annotated
+import base64
 
 from fastapi import (
     BackgroundTasks,
@@ -48,8 +49,14 @@ from docling_jobkit.orchestrators.base_orchestrator import (
     TaskNotFoundError,
 )
 
+from docling.chunking import HybridChunker, HierarchicalChunker
+from docling.document_converter import DocumentConverter
+from transformers import AutoTokenizer
 from docling_serve.datamodel.convert import ConvertDocumentsRequestOptions
 from docling_serve.datamodel.requests import (
+    ChunkingMethod,
+    ChunkingRequest,
+    ChunkingSourceRequest,
     ConvertDocumentsRequest,
     FileSourceRequest,
     HttpSourceRequest,
@@ -57,6 +64,9 @@ from docling_serve.datamodel.requests import (
     TargetName,
 )
 from docling_serve.datamodel.responses import (
+    ChunkingResponse,
+    ChunkMetadata,
+    DocumentChunk,
     ClearResponse,
     ConvertDocumentResponse,
     HealthCheckResponse,
@@ -669,5 +679,118 @@ def create_app():  # noqa: C901
     ):
         await orchestrator.clear_results(older_than=older_then)
         return ClearResponse()
+
+    # Chunk a document
+    @app.post(
+        "/v1/chunk",
+        response_model=ChunkingResponse,
+    )
+    async def chunk_document(
+        files: list[UploadFile],
+        chunking_request: Annotated[ChunkingRequest, FormDepends(ChunkingRequest)],
+    ):
+        """Chunk a document using hybrid or hierarchical chunking."""
+        # Convert uploaded files to Docling documents
+        converter = DocumentConverter()
+        chunks = []
+        
+        # Initialize tokenizer once for all files
+        if chunking_request.method == ChunkingMethod.HYBRID:
+            tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
+            chunker = HybridChunker(
+                merge_peers=chunking_request.merge_peers,
+                max_tokens=chunking_request.max_tokens,
+                tokenizer=tokenizer
+            )
+        else:
+            chunker = HierarchicalChunker(
+                merge_list_items=chunking_request.merge_list_items
+            )
+        
+        for file in files:
+            # Read file content
+            content = await file.read()
+            stream = DocumentStream(name=file.filename, stream=BytesIO(content))
+            doc = converter.convert(source=stream).document
+            
+            # Process chunks
+            for chunk in chunker.chunk(dl_doc=doc):
+                doc_chunk = DocumentChunk(
+                    text=chunker.contextualize(chunk),
+                    metadata=ChunkMetadata(
+                        start_line=getattr(chunk, 'start_line', None),
+                        end_line=getattr(chunk, 'end_line', None),
+                        headers=getattr(chunk, 'headers', None),
+                        captions=getattr(chunk, 'captions', None),
+                        token_count=getattr(chunk, 'token_count', None)
+                    )
+                )
+                chunks.append(doc_chunk)
+        
+        return ChunkingResponse(
+            chunks=chunks,
+            total_chunks=len(chunks),
+            method_used=chunking_request.method
+        )
+
+    # Chunk a document using base64 sources
+    @app.post(
+        "/v1/chunk/source",
+        response_model=ChunkingResponse,
+    )
+    async def chunk_document_source(
+        chunking_request: ChunkingSourceRequest,
+    ):
+        """Chunk a document using base64-encoded sources."""
+        # Convert uploaded files to Docling documents
+        converter = DocumentConverter()
+        chunks = []
+        
+        # Initialize tokenizer once for all sources
+        if chunking_request.method == ChunkingMethod.HYBRID:
+            tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
+            chunker = HybridChunker(
+                merge_peers=chunking_request.merge_peers,
+                max_tokens=chunking_request.max_tokens,
+                tokenizer=tokenizer
+            )
+        else:
+            chunker = HierarchicalChunker(
+                merge_list_items=chunking_request.merge_list_items
+            )
+        
+        for source in chunking_request.sources:
+            # Decode base64 content
+            try:
+                content = base64.b64decode(source.base64_string)
+            except Exception as e:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid base64 content for file {source.filename}: {str(e)}"
+                )
+            
+            # Convert to Docling document
+            stream = DocumentStream(name=source.filename, stream=BytesIO(content))
+            doc = converter.convert(source=stream).document
+            
+            # Process chunks
+            for chunk in chunker.chunk(dl_doc=doc):
+                doc_chunk = DocumentChunk(
+                    text=chunker.contextualize(chunk),
+                    metadata=ChunkMetadata(
+                        start_line=getattr(chunk, 'start_line', None),
+                        end_line=getattr(chunk, 'end_line', None),
+                        headers=getattr(chunk, 'headers', None),
+                        captions=getattr(chunk, 'captions', None),
+                        token_count=getattr(chunk, 'token_count', None)
+                    )
+                )
+                chunks.append(doc_chunk)
+        
+        return ChunkingResponse(
+            chunks=chunks,
+            total_chunks=len(chunks),
+            method_used=chunking_request.method
+        )
 
     return app
