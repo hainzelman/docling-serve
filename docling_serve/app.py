@@ -715,13 +715,24 @@ def create_app():  # noqa: C901
             
             # Process chunks
             for chunk in chunker.chunk(dl_doc=doc):
+                # Get start and end lines from first and last doc items if available
+                start_line = None
+                end_line = None
+                if chunk.meta and chunk.meta.doc_items:
+                    first_item = chunk.meta.doc_items[0]
+                    last_item = chunk.meta.doc_items[-1]
+                    if first_item.prov:
+                        start_line = first_item.prov[0].page_no
+                    if last_item.prov:
+                        end_line = last_item.prov[0].page_no
+
                 doc_chunk = DocumentChunk(
                     text=chunker.contextualize(chunk),
                     metadata=ChunkMetadata(
-                        start_line=getattr(chunk, 'start_line', None),
-                        end_line=getattr(chunk, 'end_line', None),
-                        headers=getattr(chunk, 'headers', None),
-                        captions=getattr(chunk, 'captions', None),
+                        start_line=start_line,
+                        end_line=end_line,
+                        headers=chunk.meta.headings if chunk.meta else None,
+                        captions=chunk.meta.captions if chunk.meta else None,
                         token_count=getattr(chunk, 'token_count', None)
                     )
                 )
@@ -775,13 +786,24 @@ def create_app():  # noqa: C901
             
             # Process chunks
             for chunk in chunker.chunk(dl_doc=doc):
+                # Get start and end lines from first and last doc items if available
+                start_line = None
+                end_line = None
+                if chunk.meta and chunk.meta.doc_items:
+                    first_item = chunk.meta.doc_items[0]
+                    last_item = chunk.meta.doc_items[-1]
+                    if first_item.prov:
+                        start_line = first_item.prov[0].page_no
+                    if last_item.prov:
+                        end_line = last_item.prov[0].page_no
+
                 doc_chunk = DocumentChunk(
                     text=chunker.contextualize(chunk),
                     metadata=ChunkMetadata(
-                        start_line=getattr(chunk, 'start_line', None),
-                        end_line=getattr(chunk, 'end_line', None),
-                        headers=getattr(chunk, 'headers', None),
-                        captions=getattr(chunk, 'captions', None),
+                        start_line=start_line,
+                        end_line=end_line,
+                        headers=chunk.meta.headings if chunk.meta else None,
+                        captions=chunk.meta.captions if chunk.meta else None,
                         token_count=getattr(chunk, 'token_count', None)
                     )
                 )
