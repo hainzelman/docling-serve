@@ -65,11 +65,35 @@ class WebsocketMessage(BaseModel):
 
 class ChunkMetadata(BaseModel):
     """Metadata for a single chunk."""
+    # Page and position information
     start_line: Optional[int] = Field(None, description="Starting line number of the chunk")
     end_line: Optional[int] = Field(None, description="Ending line number of the chunk")
+    page_number: Optional[int] = Field(None, description="Page number where the chunk appears")
+    page_offset: Optional[int] = Field(None, description="Offset within the page")
+    
+    # Document structure
+    section_level: Optional[int] = Field(None, description="Section level in document hierarchy")
+    section_path: Optional[List[str]] = Field(None, description="Full path of section headers")
     headers: Optional[List[str]] = Field(None, description="Headers associated with the chunk")
     captions: Optional[List[str]] = Field(None, description="Captions associated with the chunk")
+    
+    # Content information
+    content_type: Optional[str] = Field(None, description="Type of content (text, table, image, etc.)")
     token_count: Optional[int] = Field(None, description="Number of tokens in the chunk")
+    word_count: Optional[int] = Field(None, description="Number of words in the chunk")
+    char_count: Optional[int] = Field(None, description="Number of characters in the chunk")
+    
+    # Source information
+    source_file: Optional[str] = Field(None, description="Original source file name")
+    source_format: Optional[str] = Field(None, description="Original file format")
+    
+    # Additional metadata
+    is_title: Optional[bool] = Field(None, description="Whether this chunk is a title")
+    is_header: Optional[bool] = Field(None, description="Whether this chunk is a header")
+    is_footer: Optional[bool] = Field(None, description="Whether this chunk is a footer")
+    references: Optional[List[str]] = Field(None, description="References found in this chunk")
+    language: Optional[str] = Field(None, description="Detected language of the chunk")
+    confidence_score: Optional[float] = Field(None, description="Confidence score of the chunk extraction")
 
 class DocumentChunk(BaseModel):
     """A single chunk of a document."""
