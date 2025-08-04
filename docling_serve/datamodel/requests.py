@@ -101,6 +101,25 @@ class Base64FileSource(BaseModel):
     base64_string: str = Field(..., description="Base64-encoded file content")
     filename: str = Field(..., description="Original filename")
 
+class PictureDescriptionOptions(BaseModel):
+    """Options for picture description enrichment."""
+    enabled: bool = Field(
+        default=False,
+        description="Whether to enable picture description"
+    )
+    repo_id: str = Field(
+        default="HuggingFaceTB/SmolVLM-256M-Instruct",
+        description="The model repository ID to use for picture description"
+    )
+    prompt: str = Field(
+        default="Describe this picture in three to five sentences. Be precise and concise.",
+        description="The prompt to use for picture description"
+    )
+    images_scale: int = Field(
+        default=2,
+        description="Scale factor for image processing"
+    )
+
 class ChunkingSourceRequest(BaseModel):
     """Request model for document chunking with base64 support."""
     sources: list[Base64FileSource]
@@ -119,4 +138,8 @@ class ChunkingSourceRequest(BaseModel):
     max_tokens: Optional[int] = Field(
         default=512,
         description="Maximum number of tokens per chunk for hybrid chunking"
+    )
+    picture_description: Optional[PictureDescriptionOptions] = Field(
+        default=None,
+        description="Options for picture description enrichment"
     )

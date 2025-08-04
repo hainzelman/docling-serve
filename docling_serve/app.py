@@ -81,6 +81,12 @@ from docling_serve.response_preparation import prepare_response
 from docling_serve.settings import docling_serve_settings
 from docling_serve.storage import get_scratch
 from docling_serve.websocket_notifier import WebsocketNotifier
+from docling.datamodel.pipeline_options import (
+    PdfPipelineOptions,
+    PictureDescriptionVlmOptions,
+)
+from docling.document_converter import InputFormat, PdfFormatOption
+from docling_core.types.doc.document import PictureDescriptionData
 
 
 # Set up custom logging as we'll be intermixes with FastAPI/Uvicorn's logging
@@ -815,6 +821,22 @@ def create_app():  # noqa: C901
         converter = DocumentConverter()
         chunks = []
         
+        # Set up pipeline options for image description if enabled
+        pipeline_options = None
+        if chunking_request.picture_description and chunking_request.picture_description.enabled:
+            pipeline_options = PdfPipelineOptions(
+                do_picture_description=True,
+                picture_description_options=PictureDescriptionVlmOptions(
+                    repo_id=chunking_request.picture_description.repo_id,
+                    prompt=chunking_request.picture_description.prompt,
+                ),
+                generate_picture_images=True,
+                images_scale=chunking_request.picture_description.images_scale,
+            )
+            converter = DocumentConverter(
+                format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)}
+            )
+        
         # Initialize tokenizer once for all sources
         if chunking_request.method == ChunkingMethod.HYBRID:
             tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
@@ -862,6 +884,7 @@ def create_app():  # noqa: C901
                 references = []
                 language = None
                 confidence_score = None
+                picture_descriptions = []
 
                 if chunk.meta and chunk.meta.doc_items:
                     first_item = chunk.meta.doc_items[0]
@@ -898,6 +921,13 @@ def create_app():  # noqa: C901
                     if hasattr(chunk, 'confidence'):
                         confidence_score = chunk.confidence
 
+                    # Extract picture descriptions if available
+                    for item in chunk.meta.doc_items:
+                        if hasattr(item, 'annotations'):
+                            for annotation in item.annotations:
+                                if isinstance(annotation, PictureDescriptionData):
+                                    picture_descriptions.append(annotation.text)
+
                 doc_chunk = DocumentChunk(
                     text=chunker.contextualize(chunk),
                     metadata=ChunkMetadata(
@@ -920,7 +950,8 @@ def create_app():  # noqa: C901
                         is_footer=is_footer,
                         references=references,
                         language=language,
-                        confidence_score=confidence_score
+                        confidence_score=confidence_score,
+                        picture_descriptions=picture_descriptions if picture_descriptions else None
                     )
                 )
                 chunks.append(doc_chunk)
