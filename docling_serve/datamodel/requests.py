@@ -120,6 +120,21 @@ class PictureDescriptionOptions(BaseModel):
         description="Scale factor for image processing"
     )
 
+class OcrOptions(BaseModel):
+    """Options for OCR processing."""
+    enabled: bool = Field(
+        default=False,
+        description="Whether to enable OCR processing"
+    )
+    ocr_languages: Optional[list[str]] = Field(
+        default=None,
+        description="List of languages to use for OCR (e.g. ['eng', 'fra']). If None, will try to auto-detect."
+    )
+    dpi: Optional[int] = Field(
+        default=None,
+        description="DPI to use for OCR processing. Higher values may improve accuracy but increase processing time."
+    )
+
 class ChunkingSourceRequest(BaseModel):
     """Request model for document chunking with base64 support."""
     sources: list[Base64FileSource]
@@ -142,4 +157,8 @@ class ChunkingSourceRequest(BaseModel):
     picture_description: Optional[PictureDescriptionOptions] = Field(
         default=None,
         description="Options for picture description enrichment"
+    )
+    ocr: Optional[OcrOptions] = Field(
+        default=None,
+        description="Options for OCR processing"
     )

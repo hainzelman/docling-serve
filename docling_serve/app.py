@@ -821,21 +821,31 @@ def create_app():  # noqa: C901
         converter = DocumentConverter()
         chunks = []
         
-        # Set up pipeline options for image description if enabled
-        pipeline_options = None
+        # Set up pipeline options for image description and OCR if enabled
+        pipeline_options = PdfPipelineOptions()
+        
+        # Configure OCR if enabled
+        if chunking_request.ocr and chunking_request.ocr.enabled:
+            pipeline_options.do_ocr = True
+            if chunking_request.ocr.ocr_languages:
+                pipeline_options.ocr_lang = chunking_request.ocr.ocr_languages
+            if chunking_request.ocr.dpi:
+                pipeline_options.dpi = chunking_request.ocr.dpi
+        
+        # Configure image description if enabled
         if chunking_request.picture_description and chunking_request.picture_description.enabled:
-            pipeline_options = PdfPipelineOptions(
-                do_picture_description=True,
-                picture_description_options=PictureDescriptionVlmOptions(
-                    repo_id=chunking_request.picture_description.repo_id,
-                    prompt=chunking_request.picture_description.prompt,
-                ),
-                generate_picture_images=True,
-                images_scale=chunking_request.picture_description.images_scale,
+            pipeline_options.do_picture_description = True
+            pipeline_options.picture_description_options = PictureDescriptionVlmOptions(
+                repo_id=chunking_request.picture_description.repo_id,
+                prompt=chunking_request.picture_description.prompt,
             )
-            converter = DocumentConverter(
-                format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)}
-            )
+            pipeline_options.generate_picture_images = True
+            pipeline_options.images_scale = chunking_request.picture_description.images_scale
+
+        # Create converter with configured options
+        converter = DocumentConverter(
+            format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)}
+        )
         
         # Initialize tokenizer once for all sources
         if chunking_request.method == ChunkingMethod.HYBRID:
