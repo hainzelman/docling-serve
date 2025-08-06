@@ -50,6 +50,7 @@ from docling_jobkit.orchestrators.base_orchestrator import (
 )
 
 from docling.chunking import HybridChunker, HierarchicalChunker
+from docling_core.transforms.chunker.base import BaseChunk
 from docling.document_converter import DocumentConverter
 from transformers import AutoTokenizer
 from docling_serve.datamodel.convert import ConvertDocumentsRequestOptions
@@ -86,7 +87,7 @@ from docling.datamodel.pipeline_options import (
     PictureDescriptionVlmOptions,
 )
 from docling.document_converter import InputFormat, PdfFormatOption
-from docling_core.types.doc.document import PictureDescriptionData
+from docling_core.types.doc.document import PictureDescriptionData, DoclingDocument
 
 
 # Set up custom logging as we'll be intermixes with FastAPI/Uvicorn's logging
@@ -311,6 +312,45 @@ def create_app():  # noqa: C901
             elapsed_time = time.monotonic() - start_time
             if elapsed_time > docling_serve_settings.max_sync_wait:
                 return False
+
+    def _extract_chunk_metadata(chunk: BaseChunk, source_filename: str) -> ChunkMetadata:
+        """Extract comprehensive metadata from a chunk."""
+        meta = ChunkMetadata()
+        
+        # Extract from chunk.meta.doc_items
+        if hasattr(chunk, 'meta') and hasattr(chunk.meta, 'doc_items'):
+            for item in chunk.meta.doc_items:
+                # Page information
+                if hasattr(item, 'prov') and item.prov:
+                    meta.page_number = item.prov[0].page_no
+                    # Extract bounding box for page_offset calculation
+                    if hasattr(item.prov[0], 'bbox') and item.prov[0].bbox:
+                        bbox = item.prov[0].bbox
+                        meta.page_offset = int(bbox.t) if hasattr(bbox, 't') else None
+                
+                # Content type
+                meta.content_type = item.label.value if hasattr(item, 'label') else "text"
+                
+                # Headers and captions
+                if hasattr(chunk.meta, 'headings'):
+                    meta.headers = chunk.meta.headings
+                if hasattr(chunk.meta, 'captions'):
+                    meta.captions = chunk.meta.captions
+        
+        # Calculate metrics
+        meta.token_count = len(chunk.text.split())  # Approximate
+        meta.word_count = len(chunk.text.split())
+        meta.char_count = len(chunk.text)
+        
+        # Source information
+        meta.source_file = source_filename
+        # Try to extract format from filename, default to "JSON" for DoclingDocument
+        if '.' in source_filename:
+            meta.source_format = source_filename.split('.')[-1].upper()
+        else:
+            meta.source_format = "JSON"
+        
+        return meta
 
     ##########################################
     # Downgrade openapi 3.1 to 3.0.x helpers #
@@ -686,290 +726,83 @@ def create_app():  # noqa: C901
         await orchestrator.clear_results(older_than=older_then)
         return ClearResponse()
 
-    # Chunk a document
+    # Chunk a document using docling json structure
     @app.post(
         "/v1/chunk",
         response_model=ChunkingResponse,
     )
     async def chunk_document(
-        files: list[UploadFile],
-        chunking_request: Annotated[ChunkingRequest, FormDepends(ChunkingRequest)],
+        request: ChunkingSourceRequest,
     ):
-        """Chunk a document using hybrid or hierarchical chunking."""
-        # Convert uploaded files to Docling documents
-        converter = DocumentConverter()
-        chunks = []
-        
-        # Initialize tokenizer once for all files
-        if chunking_request.method == ChunkingMethod.HYBRID:
-            tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
-            chunker = HybridChunker(
-                merge_peers=chunking_request.merge_peers,
-                max_tokens=chunking_request.max_tokens,
-                tokenizer=tokenizer
-            )
-        else:
-            chunker = HierarchicalChunker(
-                merge_list_items=chunking_request.merge_list_items
-            )
-        
-        for file in files:
-            # Read file content
-            content = await file.read()
-            stream = DocumentStream(name=file.filename, stream=BytesIO(content))
-            doc = converter.convert(source=stream).document
-            
-            # Process chunks
-            for chunk in chunker.chunk(dl_doc=doc):
-                # Get start and end lines from first and last doc items if available
-                start_line = None
-                end_line = None
-                page_number = None
-                page_offset = None
-                section_level = None
-                section_path = None
-                content_type = None
-                word_count = None
-                char_count = None
-                source_file = file.filename
-                source_format = file.filename.split('.')[-1] if file.filename else None
-                is_title = False
-                is_header = False
-                is_footer = False
-                references = []
-                language = None
-                confidence_score = None
-
-                if chunk.meta and chunk.meta.doc_items:
-                    first_item = chunk.meta.doc_items[0]
-                    last_item = chunk.meta.doc_items[-1]
-                    
-                    # Extract page information
-                    if first_item.prov:
-                        start_line = first_item.prov[0].page_no
-                        page_number = first_item.prov[0].page_no
-                        page_offset = first_item.prov[0].offset if hasattr(first_item.prov[0], 'offset') else None
-                    if last_item.prov:
-                        end_line = last_item.prov[0].page_no
-                    
-                    # Extract content type and structure
-                    content_type = first_item.label.value if hasattr(first_item, 'label') else None
-                    if chunk.meta.headings:
-                        section_level = len(chunk.meta.headings)
-                        section_path = chunk.meta.headings
-                    
-                    # Extract text statistics
-                    text = chunker.contextualize(chunk)
-                    word_count = len(text.split())
-                    char_count = len(text)
-                    
-                    # Determine special positions
-                    is_title = any(item.label == 'TITLE' for item in chunk.meta.doc_items)
-                    is_header = page_number == 1 and page_offset and page_offset < 100  # Approximate header detection
-                    is_footer = page_offset and page_offset > 700  # Approximate footer detection
-                    
-                    # Extract references if available
-                    references = [ref.text for ref in chunk.meta.doc_items if hasattr(ref, 'references')]
-                    
-                    # Get confidence score if available
-                    if hasattr(chunk, 'confidence'):
-                        confidence_score = chunk.confidence
-
-                doc_chunk = DocumentChunk(
-                    text=chunker.contextualize(chunk),
-                    metadata=ChunkMetadata(
-                        start_line=start_line,
-                        end_line=end_line,
-                        page_number=page_number,
-                        page_offset=page_offset,
-                        section_level=section_level,
-                        section_path=section_path,
-                        headers=chunk.meta.headings if chunk.meta else None,
-                        captions=chunk.meta.captions if chunk.meta else None,
-                        content_type=content_type,
-                        token_count=getattr(chunk, 'token_count', None),
-                        word_count=word_count,
-                        char_count=char_count,
-                        source_file=source_file,
-                        source_format=source_format,
-                        is_title=is_title,
-                        is_header=is_header,
-                        is_footer=is_footer,
-                        references=references,
-                        language=language,
-                        confidence_score=confidence_score
-                    )
-                )
-                chunks.append(doc_chunk)
-        
-        return ChunkingResponse(
-            chunks=chunks,
-            total_chunks=len(chunks),
-            method_used=chunking_request.method
-        )
-
-    # Chunk a document using base64 sources
-    @app.post(
-        "/v1/chunk/source",
-        response_model=ChunkingResponse,
-    )
-    async def chunk_document_source(
-        chunking_request: ChunkingSourceRequest,
-    ):
-        """Chunk a document using base64-encoded sources."""
-        # Convert uploaded files to Docling documents
-        converter = DocumentConverter()
-        chunks = []
-        
-        # Set up pipeline options for image description and OCR if enabled
-        pipeline_options = PdfPipelineOptions()
-        
-        # Configure OCR if enabled
-        if chunking_request.ocr and chunking_request.ocr.enabled:
-            pipeline_options.do_ocr = True
-            if chunking_request.ocr.ocr_languages:
-                pipeline_options.ocr_lang = chunking_request.ocr.ocr_languages
-            if chunking_request.ocr.dpi:
-                pipeline_options.dpi = chunking_request.ocr.dpi
-        
-        # Configure image description if enabled
-        if chunking_request.picture_description and chunking_request.picture_description.enabled:
-            pipeline_options.do_picture_description = True
-            pipeline_options.picture_description_options = PictureDescriptionVlmOptions(
-                repo_id=chunking_request.picture_description.repo_id,
-                prompt=chunking_request.picture_description.prompt,
-            )
-            pipeline_options.generate_picture_images = True
-            pipeline_options.images_scale = chunking_request.picture_description.images_scale
-
-        # Create converter with configured options
-        converter = DocumentConverter(
-            format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)}
-        )
-        
-        # Initialize tokenizer once for all sources
-        if chunking_request.method == ChunkingMethod.HYBRID:
-            tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
-            chunker = HybridChunker(
-                merge_peers=chunking_request.merge_peers,
-                max_tokens=chunking_request.max_tokens,
-                tokenizer=tokenizer
-            )
-        else:
-            chunker = HierarchicalChunker(
-                merge_list_items=chunking_request.merge_list_items
-            )
-        
-        for source in chunking_request.sources:
-            # Decode base64 content
+        """Chunk a document using DoclingDocument JSON structure."""
+        try:
+            # 1. Create DoclingDocument from JSON structure
             try:
-                content = base64.b64decode(source.base64_string)
+                docling_document = DoclingDocument.model_validate(request.source.document)
             except Exception as e:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Invalid base64 content for file {source.filename}: {str(e)}"
+                    detail=f"Invalid DoclingDocument JSON structure: {str(e)}"
                 )
             
-            # Convert to Docling document
-            stream = DocumentStream(name=source.filename, stream=BytesIO(content))
-            doc = converter.convert(source=stream).document
-            
-            # Process chunks
-            for chunk in chunker.chunk(dl_doc=doc):
-                # Get start and end lines from first and last doc items if available
-                start_line = None
-                end_line = None
-                page_number = None
-                page_offset = None
-                section_level = None
-                section_path = None
-                content_type = None
-                word_count = None
-                char_count = None
-                source_file = source.filename
-                source_format = source.filename.split('.')[-1] if source.filename else None
-                is_title = False
-                is_header = False
-                is_footer = False
-                references = []
-                language = None
-                confidence_score = None
-                picture_descriptions = []
-
-                if chunk.meta and chunk.meta.doc_items:
-                    first_item = chunk.meta.doc_items[0]
-                    last_item = chunk.meta.doc_items[-1]
-                    
-                    # Extract page information
-                    if first_item.prov:
-                        start_line = first_item.prov[0].page_no
-                        page_number = first_item.prov[0].page_no
-                        page_offset = first_item.prov[0].offset if hasattr(first_item.prov[0], 'offset') else None
-                    if last_item.prov:
-                        end_line = last_item.prov[0].page_no
-                    
-                    # Extract content type and structure
-                    content_type = first_item.label.value if hasattr(first_item, 'label') else None
-                    if chunk.meta.headings:
-                        section_level = len(chunk.meta.headings)
-                        section_path = chunk.meta.headings
-                    
-                    # Extract text statistics
-                    text = chunker.contextualize(chunk)
-                    word_count = len(text.split())
-                    char_count = len(text)
-                    
-                    # Determine special positions
-                    is_title = any(item.label == 'TITLE' for item in chunk.meta.doc_items)
-                    is_header = page_number == 1 and page_offset and page_offset < 100  # Approximate header detection
-                    is_footer = page_offset and page_offset > 700  # Approximate footer detection
-                    
-                    # Extract references if available
-                    references = [ref.text for ref in chunk.meta.doc_items if hasattr(ref, 'references')]
-                    
-                    # Get confidence score if available
-                    if hasattr(chunk, 'confidence'):
-                        confidence_score = chunk.confidence
-
-                    # Extract picture descriptions if available
-                    for item in chunk.meta.doc_items:
-                        if hasattr(item, 'annotations'):
-                            for annotation in item.annotations:
-                                if isinstance(annotation, PictureDescriptionData):
-                                    picture_descriptions.append(annotation.text)
-
-                doc_chunk = DocumentChunk(
-                    text=chunker.contextualize(chunk),
-                    metadata=ChunkMetadata(
-                        start_line=start_line,
-                        end_line=end_line,
-                        page_number=page_number,
-                        page_offset=page_offset,
-                        section_level=section_level,
-                        section_path=section_path,
-                        headers=chunk.meta.headings if chunk.meta else None,
-                        captions=chunk.meta.captions if chunk.meta else None,
-                        content_type=content_type,
-                        token_count=getattr(chunk, 'token_count', None),
-                        word_count=word_count,
-                        char_count=char_count,
-                        source_file=source_file,
-                        source_format=source_format,
-                        is_title=is_title,
-                        is_header=is_header,
-                        is_footer=is_footer,
-                        references=references,
-                        language=language,
-                        confidence_score=confidence_score,
-                        picture_descriptions=picture_descriptions if picture_descriptions else None
+            # 4. Configure chunker based on method
+            try:
+                if request.chunking_options.method == ChunkingMethod.HYBRID:
+                    # For hybrid chunking, we need a tokenizer
+                    tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
+                    chunker = HybridChunker(
+                        tokenizer=tokenizer,
+                        max_tokens=request.chunking_options.max_tokens,
+                        merge_peers=request.chunking_options.merge_peers
                     )
+                else:  # HIERARCHICAL
+                    chunker = HierarchicalChunker(
+                        merge_list_items=request.chunking_options.merge_list_items
+                    )
+            except Exception as e:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Chunker initialization failed: {str(e)}"
                 )
-                chunks.append(doc_chunk)
-        
-        return ChunkingResponse(
-            chunks=chunks,
-            total_chunks=len(chunks),
-            method_used=chunking_request.method
-        )
+            
+            # 5. Process chunks and extract metadata
+            chunks = []
+            try:
+                for chunk in chunker.chunk(dl_doc=docling_document):
+                    # Extract text content using contextualize method
+                    chunk_text = chunker.contextualize(chunk=chunk)
+                    
+                    # Extract metadata
+                    metadata = _extract_chunk_metadata(chunk, request.source.filename or "document")
+                    
+                    # Create DocumentChunk
+                    document_chunk = DocumentChunk(
+                        text=chunk_text,
+                        metadata=metadata
+                    )
+                    chunks.append(document_chunk)
+            except Exception as e:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Chunking process failed: {str(e)}"
+                )
+            
+            # 6. Return response
+            return ChunkingResponse(
+                chunks=chunks,
+                total_chunks=len(chunks),
+                method_used=request.chunking_options.method.value
+            )
+            
+        except HTTPException:
+            # Re-raise HTTP exceptions
+            raise
+        except Exception as e:
+            # Handle any other unexpected errors
+            _log.error(f"Unexpected error in chunking: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Internal server error: {str(e)}"
+            )
 
     return app

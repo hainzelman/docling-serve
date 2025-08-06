@@ -95,11 +95,19 @@ class ChunkingRequest(BaseModel):
         description="Maximum number of tokens per chunk for hybrid chunking"
     )
 
-class Base64FileSource(BaseModel):
-    """A file source with base64-encoded content."""
-    kind: Literal["file"] = "file"
-    base64_string: str = Field(..., description="Base64-encoded file content")
-    filename: str = Field(..., description="Original filename")
+class DoclingDocumentSource(BaseModel):
+    """A DoclingDocument JSON structure."""
+    kind: Literal["docling_document"] = "docling_document"
+    document: dict = Field(..., description="DoclingDocument JSON structure")
+    filename: Optional[str] = Field(None, description="Original filename (optional)")
+
+class ChunkingSourceRequest(BaseModel):
+    """Request model for document chunking with source."""
+    source: DoclingDocumentSource = Field(..., description="DoclingDocument JSON structure")
+    chunking_options: ChunkingRequest = Field(
+        default_factory=ChunkingRequest,
+        description="Chunking configuration options"
+    )
 
 class PictureDescriptionOptions(BaseModel):
     """Options for picture description enrichment."""
@@ -133,32 +141,4 @@ class OcrOptions(BaseModel):
     dpi: Optional[int] = Field(
         default=None,
         description="DPI to use for OCR processing. Higher values may improve accuracy but increase processing time."
-    )
-
-class ChunkingSourceRequest(BaseModel):
-    """Request model for document chunking with base64 support."""
-    sources: list[Base64FileSource]
-    method: ChunkingMethod = Field(
-        default=ChunkingMethod.HYBRID,
-        description="The chunking method to use"
-    )
-    merge_list_items: Optional[bool] = Field(
-        default=True,
-        description="Whether to merge list items in hierarchical chunking"
-    )
-    merge_peers: Optional[bool] = Field(
-        default=True,
-        description="Whether to merge undersized successive chunks with same headings & captions in hybrid chunking"
-    )
-    max_tokens: Optional[int] = Field(
-        default=512,
-        description="Maximum number of tokens per chunk for hybrid chunking"
-    )
-    picture_description: Optional[PictureDescriptionOptions] = Field(
-        default=None,
-        description="Options for picture description enrichment"
-    )
-    ocr: Optional[OcrOptions] = Field(
-        default=None,
-        description="Options for OCR processing"
     )
