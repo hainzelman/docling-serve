@@ -4,7 +4,7 @@ from functools import cache
 
 from pydantic import BaseModel, Field, model_validator
 from pydantic_core import PydanticCustomError
-from typing_extensions import Self, TypeVar
+from typing_extensions import Self, TypeVar, Generic
 
 from docling_jobkit.datamodel.chunking import (
     BaseChunkerOptions,
