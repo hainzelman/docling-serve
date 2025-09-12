@@ -1,3 +1,111 @@
+## [v1.5.0](https://github.com/docling-project/docling-serve/releases/tag/v1.5.0) - 2025-09-09
+
+### Feature
+
+* Add chunking endpoints ([#353](https://github.com/docling-project/docling-serve/issues/353)) ([`9d6def0`](https://github.com/docling-project/docling-serve/commit/9d6def0ec8b1804ad31aa71defa17658d73d29a1))
+
+### Docling libraries included in this release:
+- docling 2.46.0
+- docling 2.51.0
+- docling-core 2.47.0
+- docling-ibm-models 3.9.1
+- docling-jobkit 1.5.0
+- docling-mcp 1.2.0
+- docling-parse 4.4.0
+- docling-serve 1.5.0
+
+## [v1.4.1](https://github.com/docling-project/docling-serve/releases/tag/v1.4.1) - 2025-09-08
+
+### Fix
+
+* Trigger fix after ci fixes ([#355](https://github.com/docling-project/docling-serve/issues/355)) ([`b0360d7`](https://github.com/docling-project/docling-serve/commit/b0360d723bff202dcf44a25a3173ec1995945fc2))
+
+### Docling libraries included in this release:
+- docling 2.46.0
+- docling 2.51.0
+- docling-core 2.47.0
+- docling-ibm-models 3.9.1
+- docling-jobkit 1.4.1
+- docling-mcp 1.2.0
+- docling-parse 4.4.0
+- docling-serve 1.4.1
+
+## [v1.4.0](https://github.com/docling-project/docling-serve/releases/tag/v1.4.0) - 2025-09-05
+
+### Feature
+
+* **docling:** Perfomance improvements in parsing, new layout model, fixes in html processing ([#352](https://github.com/docling-project/docling-serve/issues/352)) ([`d64a2a9`](https://github.com/docling-project/docling-serve/commit/d64a2a974a276c7ae3b105c448fd79f77a653d20))
+
+### Fix
+
+* Upgrade to latest docling version with fixes ([#335](https://github.com/docling-project/docling-serve/issues/335)) ([`e544947`](https://github.com/docling-project/docling-serve/commit/e5449472b2a3e71796f41c8a58c251d8229305c1))
+
+### Documentation
+
+* Add split processing example ([#303](https://github.com/docling-project/docling-serve/issues/303)) ([`0d4545a`](https://github.com/docling-project/docling-serve/commit/0d4545a65a5a941fc1fdefda57e39cfb1ea106ab))
+* Document DOCLING_NUM_THREADS environment variable ([#341](https://github.com/docling-project/docling-serve/issues/341)) ([`27fdd7b`](https://github.com/docling-project/docling-serve/commit/27fdd7b85ab18b3eece428366f46dc5cf0995e38))
+* Fix parameters typo ([#333](https://github.com/docling-project/docling-serve/issues/333)) ([`81f0a8d`](https://github.com/docling-project/docling-serve/commit/81f0a8ddf80a532042d550ae4568f891458b45e7))
+* Describe how to use Docling MCP ([#332](https://github.com/docling-project/docling-serve/issues/332)) ([`a69cc86`](https://github.com/docling-project/docling-serve/commit/a69cc867f5a3fb76648803ca866d65cc3a75c6b8))
+
+### Docling libraries included in this release:
+- docling 2.46.0
+- docling 2.51.0
+- docling-core 2.47.0
+- docling-ibm-models 3.9.1
+- docling-jobkit 1.4.1
+- docling-mcp 1.2.0
+- docling-parse 4.4.0
+- docling-serve 1.4.0
+
+## [v1.3.1](https://github.com/docling-project/docling-serve/releases/tag/v1.3.1) - 2025-08-21
+
+### Fix
+
+* Configuration and performance fixes via upgrade of packages ([#328](https://github.com/docling-project/docling-serve/issues/328)) ([`f02dbc0`](https://github.com/docling-project/docling-serve/commit/f02dbc01449fe1caf3fb4a73c0a5f4adf8265faf))
+
+### Documentation
+
+* Fix parameter in api key docs ([#323](https://github.com/docling-project/docling-serve/issues/323)) ([`37fe022`](https://github.com/docling-project/docling-serve/commit/37fe02277b3e2358eced28e15b4360e7c82d3b43))
+
+## [v1.3.0](https://github.com/docling-project/docling-serve/releases/tag/v1.3.0) - 2025-08-14
+
+### Feature
+
+* Add configuration option for apikey security ([#322](https://github.com/docling-project/docling-serve/issues/322)) ([`9a64410`](https://github.com/docling-project/docling-serve/commit/9a644105523d312431993ded8dd88e064550a5db))
+* Add RQ engine ([#315](https://github.com/docling-project/docling-serve/issues/315)) ([`885f319`](https://github.com/docling-project/docling-serve/commit/885f319d3a3488a4090869560447437a4104f14e))
+
+### Documentation
+
+* Example of docling-serve deployment in the RQ engine mode ([#321](https://github.com/docling-project/docling-serve/issues/321)) ([`71edf41`](https://github.com/docling-project/docling-serve/commit/71edf4184960d8664ef9da20617e2d0f91793d36))
+* Handling models in docling-serve ([#319](https://github.com/docling-project/docling-serve/issues/319)) ([`6e9aa8c`](https://github.com/docling-project/docling-serve/commit/6e9aa8c759220458281c7fe4c87443ac41023eee))
+* Add Gradio cache usage ([#312](https://github.com/docling-project/docling-serve/issues/312)) ([`d584895`](https://github.com/docling-project/docling-serve/commit/d584895e1108d71a0f45deadcd3c669eb0a58133))
+
+## [v1.2.2](https://github.com/docling-project/docling-serve/releases/tag/v1.2.2) - 2025-08-13
+
+### Fix
+
+* Update of transformers module to 4.55.1 ([#316](https://github.com/docling-project/docling-serve/issues/316)) ([`7692eb2`](https://github.com/docling-project/docling-serve/commit/7692eb26006fd4deaa021180c99e23a1b65de506))
+
+## [v1.2.1](https://github.com/docling-project/docling-serve/releases/tag/v1.2.1) - 2025-08-13
+
+### Fix
+
+* Handling of vlm model options and update deps ([#314](https://github.com/docling-project/docling-serve/issues/314)) ([`8b470cb`](https://github.com/docling-project/docling-serve/commit/8b470cba8ef500c271eb84c8368c8a1a1a5a6d6a))
+* Add missing response type in sync endpoints ([#309](https://github.com/docling-project/docling-serve/issues/309)) ([`8048f45`](https://github.com/docling-project/docling-serve/commit/8048f4589a91de2b2b391ab33a326efd1b29f25b))
+
+### Documentation
+
+* Update readme to use v1 ([#306](https://github.com/docling-project/docling-serve/issues/306)) ([`b3058e9`](https://github.com/docling-project/docling-serve/commit/b3058e91e0c56e27110eb50f22cbdd89640bf398))
+* Update deployment examples to use v1 API ([#308](https://github.com/docling-project/docling-serve/issues/308)) ([`63da9ee`](https://github.com/docling-project/docling-serve/commit/63da9eedebae3ad31d04e65635e573194e413793))
+* Fix typo in v1 migration instructions ([#307](https://github.com/docling-project/docling-serve/issues/307)) ([`b15dc25`](https://github.com/docling-project/docling-serve/commit/b15dc2529f78d68a475e5221c37408c3f77d8588))
+
+## [v1.2.0](https://github.com/docling-project/docling-serve/releases/tag/v1.2.0) - 2025-08-07
+
+### Feature
+
+* Workers without shared models and convert params ([#304](https://github.com/docling-project/docling-serve/issues/304)) ([`db3fdb5`](https://github.com/docling-project/docling-serve/commit/db3fdb5bc1a0ae250afd420d737abc4071a7546c))
+* Add rocm image build support and fix cuda ([#292](https://github.com/docling-project/docling-serve/issues/292)) ([`fd1b987`](https://github.com/docling-project/docling-serve/commit/fd1b987e8dc174f1a6013c003dde33e9acbae39a))
+
 ## [v1.1.0](https://github.com/docling-project/docling-serve/releases/tag/v1.1.0) - 2025-07-30
 
 ### Feature

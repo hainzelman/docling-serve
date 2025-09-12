@@ -1,10 +1,14 @@
 from enum import Enum
 from typing import Annotated, Literal, Optional
+from functools import cache
 
 from pydantic import BaseModel, Field, model_validator
 from pydantic_core import PydanticCustomError
-from typing_extensions import Self
+from typing_extensions import Self, TypeVar
 
+from docling_jobkit.datamodel.chunking import (
+    BaseChunkerOptions,
+)
 from docling_jobkit.datamodel.http_inputs import FileSource, HttpSource
 from docling_jobkit.datamodel.s3_coords import S3Coordinates
 from docling_jobkit.datamodel.task_targets import (
@@ -141,4 +145,51 @@ class OcrOptions(BaseModel):
     dpi: Optional[int] = Field(
         default=None,
         description="DPI to use for OCR processing. Higher values may improve accuracy but increase processing time."
+    )
+## Source chunking requests
+
+
+class BaseChunkDocumentsRequest(BaseModel):
+    convert_options: Annotated[
+        ConvertDocumentsRequestOptions, Field(description="Conversion options.")
+    ] = ConvertDocumentsRequestOptions()
+    sources: Annotated[
+        list[SourceRequestItem],
+        Field(description="List of input document sources to process."),
+    ]
+    include_converted_doc: Annotated[
+        bool,
+        Field(
+            description="If true, the output will include both the chunks and the converted document."
+        ),
+    ] = False
+    target: Annotated[
+        TaskTarget, Field(description="Specification for the type of output target.")
+    ] = InBodyTarget()
+
+
+ChunkingOptT = TypeVar("ChunkingOptT", bound=BaseChunkerOptions)
+
+
+class GenericChunkDocumentsRequest(BaseChunkDocumentsRequest, Generic[ChunkingOptT]):
+    chunking_options: ChunkingOptT
+
+
+@cache
+def make_request_model(
+    opt_type: type[ChunkingOptT],
+) -> type[GenericChunkDocumentsRequest[ChunkingOptT]]:
+    """
+    Dynamically create (and cache) a subclass of GenericChunkDocumentsRequest[opt_type]
+    with chunking_options having a default factory.
+    """
+    return type(
+        f"{opt_type.__name__}DocumentsRequest",
+        (GenericChunkDocumentsRequest[opt_type],),  # type: ignore[valid-type]
+        {
+            "__annotations__": {"chunking_options": opt_type},
+            "chunking_options": Field(
+                default_factory=opt_type, description="Options specific to the chunker."
+            ),
+        },
     )
